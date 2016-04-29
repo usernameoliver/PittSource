@@ -87,13 +87,10 @@ public class SingleTrackActivity extends Activity {
         // Get album id, song id
         Intent i = getIntent();
         album_id = i.getStringExtra("album_id");
-        song_id = i.getStringExtra("song_id");
         gotoPage();
 
         track_no = i.getStringExtra("track_no");
         Log.d("album_id", album_id);
-        Log.d("song_id", song_id);
-        Log.d("track_no", track_no);
 
         // calling background thread
         new LoadSingleTrack().execute();

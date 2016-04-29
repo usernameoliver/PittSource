@@ -2,7 +2,11 @@ package com.example.hlt04.pyquiz;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -103,13 +107,11 @@ public class AlbumsActivity extends ListActivity {
                                     long arg3) {
                 // on selecting a single album
                 // TrackListActivity will be launched to show tracks inside the album
-                Intent i = new Intent(getApplicationContext(), TrackListActivity.class);
+                Intent i = new Intent(getApplicationContext(), SingleTrackActivity.class);
 
                 // send album id to tracklist activity to get list of songs under that album
                 String album_id = ((TextView) view.findViewById(R.id.album_id)).getText().toString();
                 i.putExtra("album_id", album_id);
-                i.putExtra("albums", albums.toString());
-                i.putExtra("state", state.toString());
                 startActivity(i);
             }
         });
@@ -137,42 +139,12 @@ public class AlbumsActivity extends ListActivity {
          * getting Albums JSON
          * */
         protected String doInBackground(String... args) {
-            String json = "";
+            String json = readFileAsString();
 
-            URL url = null;
-            try {
-                url = new URL(URL_ALBUMS);
-                Log.d("url lalala: ", url.toString());
-                URLConnection uc = url.openConnection();
-                BufferedReader in = new BufferedReader(new InputStreamReader(
-                        uc.getInputStream()));
-                String line = "";
-                while((line = in.readLine()) != null){
-                    json += line;
-                }
-                in.close();
-            } catch (MalformedURLException e) {
-                Log.d("MalformedURL lala ", e.toString());
-
-            } catch (IOException io) {
-                Log.d("ioexception lala ", io.toString());
-            }
-
-            Log.d("Albums JSON lala ", "> " + json);
-
-            //json = "[{\"id\":1,\"name\":\"127 Hours\",\"songs_count\":14},{\"id\":2,\"name\":\"Adele 21\",\"songs_count\":11},{\"id\":3,\"name\":\"Lana Del Rey - Born to Die\",\"songs_count\":12},{\"id\":4,\"name\":\"Once\",\"songs_count\":13},{\"id\":5,\"name\":\"Away We Go\",\"songs_count\":13},{\"id\":6,\"name\":\"Eminem Curtain Call\",\"songs_count\":14},{\"id\":7,\"name\":\"Bad Meets Evil Eminem\",\"songs_count\":11},{\"id\":8,\"name\":\"Safe Trip Home\",\"songs_count\":11},{\"id\":9,\"name\":\"No Angel\",\"songs_count\":12}]";
-
-            // Check your log cat for JSON reponse
-            //Log.d("substring lala", "hi" + json.substring(98190) + "hi");
-            Log.d("json length", "" + json.length());
-            json = json.replace("function (x) { var y = Math.log(x)*0.25 + 1;  return (y < 0 ? 0 : y); }", "hi");
-            //Log.d("substring lala", "hi" + json.substring(98190) + "hi");
-            Log.d("json length", "" + json.length());
+            Log.d("Albums JSON lala ", "> " + json.length());
 
             try {
-                JSONObject js = new JSONObject(json);
-                albums = js.getJSONArray("topics");
-                state = js.getJSONArray("learners").getJSONObject(0).getJSONObject("state");
+                albums = new JSONArray(json);
                 if (albums != null) {
                     // looping through All albums
                     Log.d("within json loop", "in loop lala");
@@ -180,15 +152,15 @@ public class AlbumsActivity extends ListActivity {
                         JSONObject c = albums.getJSONObject(i);
 
                         // Storing each json item values in variable
-                        String id = c.getString("id");
-                        String name = c.getString("name");
-                        String songs_count = state.getJSONObject("topics").getJSONObject(id).getJSONObject("values").getJSONObject("qp").getString("p");
+                        String id = c.getString("url");
+                        String name = c.getString("title");
+                        String songs_count = c.getString("datePosted");
 
                         // creating new HashMap
                         HashMap<String, String> map = new HashMap<String, String>();
 
                         // adding each child node to HashMap key => value
-                        map.put(TAG_ID, i + "");
+                        map.put(TAG_ID, id);
                         map.put(TAG_NAME, name);
                         map.put(TAG_SONGS_COUNT, songs_count);
                         gradeString.add(songs_count);
@@ -218,11 +190,11 @@ public class AlbumsActivity extends ListActivity {
                     /**
                      * Updating parsed JSON data into ListView
                      * */
-                    ListAdapter adapter = new AlbumListAdapter(
+                    ListAdapter adapter = new SimpleAdapter(
                             AlbumsActivity.this, albumsList,
                             R.layout.list_item_albums, new String[]{TAG_ID,
                             TAG_NAME, TAG_SONGS_COUNT}, new int[]{
-                            R.id.album_id, R.id.album_name, R.id.songs_count}, gradeString);
+                            R.id.album_id, R.id.album_name, R.id.songs_count});
                     //Log.d("String",R.id.songs_count + "*********************************************");
                     //Log.d("String",R.id.songs_count + "*********************************************");
                     //TextView newview = (TextView) findViewById(R.id.songs_count);
@@ -237,7 +209,7 @@ public class AlbumsActivity extends ListActivity {
 
         public class AlbumListAdapter extends SimpleAdapter {
             private ArrayList<String> gradeStringHere;
-            private int[] colors = new int[] { 0x30ffffff, 0x30f2ffcc,0x30dfff80,0x30ccff33,0x30bfff00,0x3099cc00,0x30739900 };
+            private int[] colors = new int[] { 0x30ffffff, 0x30f2ffcc,0x30dfff80,0x30ccff33,0x30bfff00,0x3099cc00,0x3000e600 };
 
             public AlbumListAdapter(Context context, ArrayList<HashMap<String, String>> items, int resource, String[] from, int[] to,ArrayList<String> gradeStringnew) {
                 super(context, items, resource, from, to);
@@ -281,6 +253,26 @@ public class AlbumsActivity extends ListActivity {
         }
 
 
+    }
+
+    public String readFileAsString() {
+        String jsonString = "";
+        try {
+            InputStream is = getResources().openRawResource(R.raw.quoted);
+            Writer writer = new StringWriter();
+            char[] buffer = new char[1024];
+            Reader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            int n;
+            while ((n = reader.read(buffer)) != -1) {
+                writer.write(buffer, 0, n);
+            }
+            is.close();
+            jsonString = writer.toString();
+        } catch (IOException e) {
+            Log.e("io", e.toString());
+        }
+        Log.d("jsonstring: ", jsonString);
+        return jsonString;
     }
 
 
