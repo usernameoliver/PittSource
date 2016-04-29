@@ -7,9 +7,6 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -32,6 +29,7 @@ import android.widget.TextView;
 import android.view.ViewGroup;
 import java.util.List;
 import android.content.Context;
+import com.example.hlt04.pyquiz.helper.Document;
 
 import com.example.hlt04.pyquiz.helper.AlertDialogManager;
 import com.example.hlt04.pyquiz.helper.ConnectionDetector;
@@ -52,12 +50,15 @@ public class AlbumsActivity extends ListActivity {
     //JSONParser jsonParser = new JSONParser();
 
     public ArrayList<HashMap<String, String>> albumsList;
+    public ArrayList<HashMap<String, String>> albumsListNew = new ArrayList<HashMap<String, String>>();
+
 
     // albums JSONArray
     JSONArray albums = null;
     JSONObject state = null;
 
     String userId = "";//"adl01";
+    private String Query = "";
 
     // albums JSON url
     private static String URL_ALBUMS = "";///*"http://api.androidhive.info/songs/albums.php";*/"http://adapt2.sis.pitt.edu/aggregate/GetContentLevels?usr=adl01&grp=ADL&sid=generate_a_session_id&cid=23&mod=all&models=0";
@@ -73,7 +74,7 @@ public class AlbumsActivity extends ListActivity {
         setContentView(R.layout.activity_albums);
 
         Intent i = getIntent();
-        userId = i.getStringExtra("userName1");
+        Query = i.getStringExtra("userName1");
         userId = "adl01";
         URL_ALBUMS = "http://adapt2.sis.pitt.edu/aggregate/GetContentLevels?usr=" + userId + "&grp=ADL&sid=generate_a_session_id&cid=23&mod=all&models=0";
 
@@ -121,7 +122,9 @@ public class AlbumsActivity extends ListActivity {
      * Background Async Task to Load all Albums by making http request
      * */
     class LoadAlbums extends AsyncTask<String, String, String> {
-
+        private HashMap<String,ArrayList<String>> dictionaryP = new HashMap<String,ArrayList<String>>();
+        private HashMap<String,ArrayList<Integer>> dictionaryO = new HashMap<String,ArrayList<Integer>>();
+        private HashMap<String,String> idNameDictionary = new HashMap<>();
         /**
          * Before starting background thread Show Progress Dialog
          * */
@@ -129,7 +132,7 @@ public class AlbumsActivity extends ListActivity {
         protected void onPreExecute() {
             super.onPreExecute();
             pDialog = new ProgressDialog(AlbumsActivity.this);
-            pDialog.setMessage("Listing Topics ...");
+            pDialog.setMessage("I am looking for every positions you may like...");
             pDialog.setIndeterminate(false);
             pDialog.setCancelable(false);
             pDialog.show();
@@ -155,6 +158,9 @@ public class AlbumsActivity extends ListActivity {
                         String id = c.getString("url");
                         String name = c.getString("title");
                         String songs_count = c.getString("datePosted");
+                        String text = c.getString("text");
+                        int len = id.length();
+                        index(id.substring(len-6,len),text);
 
                         // creating new HashMap
                         HashMap<String, String> map = new HashMap<String, String>();
@@ -163,6 +169,11 @@ public class AlbumsActivity extends ListActivity {
                         map.put(TAG_ID, id);
                         map.put(TAG_NAME, name);
                         map.put(TAG_SONGS_COUNT, songs_count);
+                        idNameDictionary.put(id,name);
+                        Log.d("String", id);
+                        Log.d("String", name);
+                        Log.d("String",songs_count);
+                        Log.d("String",id.substring(len-6,len));
                         gradeString.add(songs_count);
                         // adding HashList to ArrayList
                         albumsList.add(map);
@@ -173,7 +184,33 @@ public class AlbumsActivity extends ListActivity {
 
             } catch (JSONException e) {
                 Log.d("parse lala", e.toString());
+            } catch (IOException e) {
+                e.printStackTrace();
             }
+
+        String[] queryToken = Query.split(" ");
+            for(int i = 0; i < queryToken.length; i++){
+                ArrayList<String> docList = dictionaryP.get(queryToken[i]);
+                ArrayList<Integer> docListOccur = dictionaryO.get(queryToken[i]);
+                for (int j = 0; j < docList.size(); j++){
+                    String urlNew = "https://www.pittsource.com/postings/" + docList.get(j);
+                    int occur = docListOccur.get(j);
+                    String nameNew = idNameDictionary.get(urlNew);
+                    HashMap<String, String> mapNew = new HashMap<String, String>();
+                    mapNew.put(TAG_ID, urlNew);
+                    mapNew.put(TAG_NAME, nameNew);
+                    mapNew.put(TAG_SONGS_COUNT, occur + "");
+                    albumsListNew.add(mapNew);
+
+                }
+
+
+                // adding each child node to HashMap key => value
+
+
+            }
+
+
 
             return null;
         }
@@ -191,7 +228,7 @@ public class AlbumsActivity extends ListActivity {
                      * Updating parsed JSON data into ListView
                      * */
                     ListAdapter adapter = new SimpleAdapter(
-                            AlbumsActivity.this, albumsList,
+                            AlbumsActivity.this, albumsListNew,
                             R.layout.list_item_albums, new String[]{TAG_ID,
                             TAG_NAME, TAG_SONGS_COUNT}, new int[]{
                             R.id.album_id, R.id.album_name, R.id.songs_count});
@@ -206,6 +243,57 @@ public class AlbumsActivity extends ListActivity {
             });
 
         }
+        //method of indexing
+        public void index(String docno, String content) throws  NullPointerException,IOException {
+
+            String[] tokens = content.split("\\s+");
+
+
+            //System.out.println(tokens.length);
+            //System.out.println(tokens[0]);
+            //System.out.println(content);
+            for(int i = 0; i < tokens.length; i++){
+
+                String tempKey = tokens[i];
+                //if the dictionary has the term, then add the docno to the List aready existing.
+                if(dictionaryP.containsKey(tempKey))
+                {
+                    ArrayList<String> tempListPost = dictionaryP.get(tempKey);
+                    ArrayList<Integer> tempListOccur = dictionaryO.get(tempKey);
+                    String currentDocno = tempListPost.get(tempListPost.size() - 1);
+                    int currentOccur = tempListOccur.get(tempListOccur.size() - 1);
+                    if(currentDocno.equals(docno)){//if this term occur for the first time in this doc but exsits in other posts,
+                        currentOccur++;
+                        tempListOccur.remove(tempListOccur.size() - 1);
+                        tempListOccur.add(currentOccur);
+                        dictionaryO.put(tempKey, tempListOccur);
+
+                    }
+                    else{
+                        tempListOccur.add(1);
+                        dictionaryO.put(tempKey, tempListOccur);
+                        tempListPost.add(docno);//add docno to posts
+                        dictionaryP.put(tempKey,tempListPost);
+                    }
+
+                }//end if
+                else{// if the dictionary does not have the term, create a new List.
+
+                    ArrayList<String> tempListPost = new ArrayList<String>();
+                    ArrayList<Integer> tempListOccur = new ArrayList<Integer>();
+                    int tempOccur = 1;
+                    tempListOccur.add(tempOccur);
+                    tempListPost.add(docno);
+                    dictionaryO.put(tempKey, tempListOccur);
+                    dictionaryP.put(tempKey,tempListPost);
+                }//end else
+            }//end for
+            //System.out.println(dictionaryP.entrySet());
+            //System.out.println("-------------------------------------------------");
+            //System.out.println(dictionaryO.entrySet());
+        }//end of index
+
+
 
         public class AlbumListAdapter extends SimpleAdapter {
             private ArrayList<String> gradeStringHere;
